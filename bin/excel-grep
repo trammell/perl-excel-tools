@@ -4,26 +4,30 @@ use strict;
 use warnings;
 binmode(STDOUT, ":utf8");
 
-use Algorithm::Diff;
-use String::Diff;
 use Spreadsheet::ParseExcel;
 use Pod::Usage;
 use Getopt::Long;
-use List::MoreUtils 'mesh';
 
 my %OPT = ();
 GetOptions(\%OPT, 'man', 'file|f=s', 'help|h', 'verbose|v');
-pod2usage("Please supply two filenames.") unless @ARGV == 2;
+pod2usage("Please supply a pattern and a filename.") unless @ARGV;
 
 my $parser = Spreadsheet::ParseExcel->new();
 
-# workbooks
+# get pattern or list of patterns
+my @patterns;
+if ($OPT{file}) {
+    open(my $fh, '<', $OPT{file}) or die "$OPT{file}: $!";
+    @patterns = map { chomp; $_ } grep { $_ =~ /\S/ } <$fh>;
+}
+else {
+    push @patterns, shift @ARGV;
+}
 
+# workbooks
 for my $file (@ARGV) {
     my $wb = $parser->parse($file);
-    unless ($wb) {
-        die $parser->error(), "\n";
-    }
+    die($parser->error(), "\n") unless $wb;
 
     # get first worksheet only
     my $ws = $wb->worksheet(0);
@@ -39,17 +43,51 @@ for my $file (@ARGV) {
         for my $col ($cmin .. $cmax) {
             my $cell = $ws->get_cell($row, $col);
             my $value = eval { $cell->value() } || q();
-            if ($OPT{literal}) {
-                my @matches = grep { index($value,$_) < 0 } @patterns;
-            }
-            else {
-                my @matches = grep { $value =~ /$_/ } @patterns;
-            }
+            my @m = grep { index($value,$_) >= 0 } @patterns;
+            next unless @m;
+            show_match($file, \@header, $row, $col, \@m);
         }
     }
-
 }
 
+my $SHOWN;
+sub show_match {
+    my ($file, $header, $row, $col, $matches) = @_;
+    my $field = $header->[$col];
+    my $acol = alpha_col($col);
+    $SHOWN = 1;
+    print "=" x 40, "\n";
+    local $, = q(,);
+    print <<"__match"
+file $file, row @{[ $row + 1 ]}, column $acol (field "$field")
+matched strings: @$matches
+__match
+}
+END {
+    if ($SHOWN) {
+        print "=" x 40, "\n";
+    }
+    else {
+        warn "No matches.\n";
+    }
+}
+
+sub get_header {
+    my $ws = shift;
+    my ($cmin, $cmax) = $ws->col_range;
+    my @header = map {
+        my $cell = $ws->get_cell(0, $_);
+        eval { $cell->value() } || q();
+    } $cmin .. $cmax;
+    return @header;
+}
+
+my $EXCEL_COLS;
+sub alpha_col {
+    my $col = shift;
+    $EXCEL_COLS ||= ['A' .. 'Z', 'AA' .. 'ZZ'];
+    return $EXCEL_COLS->[$col];
+}
 
 __END__
 
@@ -57,13 +95,13 @@ __END__
 
 =head1 NAME
 
-excel-grep - show the differences between two Excel files
+excel-grep - search for a string within Excel files
 
 =head1 SYNOPSIS
 
     excel-grep --help
     excel-grep string file.xls [...]
-    excel-grep --file file file.xls [...]
+    excel-grep --file pattern-file file.xls [...]
 
 =head1 ARGUMENTS
 
