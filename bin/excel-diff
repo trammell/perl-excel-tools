@@ -68,7 +68,7 @@ my @question_ids = sort {
 my @deltas;
 
 for my $key (@question_ids) {
-    warn "Diffing key '$key'\n" if $OPT{verbose};
+    warn "Diffing question ID '$key'\n" if $OPT{verbose};
     my $row0 = get_row($ws0,$key);
     my $row1 = get_row($ws1,$key);
 
@@ -77,7 +77,7 @@ for my $key (@question_ids) {
 
     next if "@cols0" eq "@cols1";
 
-    warn "Difference in $key\n";
+    warn "Difference in ID $key\n" if $OPT{verbose};
 
     my %rec0 = mesh @h0, @cols0;
     my %rec1 = mesh @h1, @cols1;
@@ -96,25 +96,25 @@ for my $key (@question_ids) {
 }
 
 if (@deltas) {
-    for my $delta (@deltas[0 .. 2]) {
+    for my $delta (@deltas) {
         print "=" x 50, "\n";
-        print "  key: ", $delta->{key}, "\n";
-        print "field: ", $delta->{field}, "\n";
-        #print $delta->{old_val}, "\n";
-        print $delta->{new_val}, "\n";
-        my $xor = $delta->{old_val} ^ $delta->{new_val};
-        $xor =~ s/[^\000].*//;
-        print " " x length($xor), "^\n";
+        print "    file: ", $ARGV[1], "\n";
+        print "question: ", $delta->{key}, "\n";
+        print "     row: ", $delta->{new_row}, "\n";
+        print "   field: ", $delta->{field}, "\n";
+        print "     old: ", $delta->{old_val}, "\n";
+        print "     new: ", $delta->{new_val}, "\n";
+        my $n = first_diff($delta->{old_val}, $delta->{new_val});
+        print "          ", " " x $n, "^\n";
     }
-
-#      my %markup = (
-#          remove_open  => '[',
-#          remove_close => ']',
-#      );
-#      my $diff = String::Diff::diff_merge($rec0{$h}, $rec1{$h}, %markup);
-
 }
 
+sub first_diff {
+    my ($x,$y) = @_;
+    my $xor = $x ^ $y;
+    my ($nulls) = ($xor =~ /^([\000]*)/);
+    return length($nulls);
+}
 
 sub get_row {
     my ($ws, $key) = @_;
