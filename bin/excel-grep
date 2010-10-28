@@ -9,7 +9,7 @@ use Pod::Usage;
 use Getopt::Long;
 
 my %OPT = ();
-GetOptions(\%OPT, 'man', 'file|f=s', 'help|h', 'verbose|v');
+GetOptions(\%OPT, 'man', 'i', 'file|f=s', 'help|h', 'verbose|v');
 pod2usage("Please supply a pattern and a filename.") unless @ARGV;
 
 my $parser = Spreadsheet::ParseExcel->new();
@@ -40,27 +40,39 @@ for my $file (@ARGV) {
     my ($cmin, $cmax) = $ws->col_range;
 
     for my $row ($rmin .. $rmax) {
+        my $question = do {
+            my $cell = $ws->get_cell($row, 0);
+            eval { $cell->value() } || q();
+        };
         for my $col ($cmin .. $cmax) {
             my $cell = $ws->get_cell($row, $col);
             my $value = eval { $cell->value() } || q();
-            my @m = grep { index($value,$_) >= 0 } @patterns;
+            my @m = grep {
+                if ($OPT{i}) {
+                    index(lc($value),lc($_)) >= 0
+                }
+                else {
+                    index($value,$_) >= 0
+                }
+            } @patterns;
             next unless @m;
-            show_match($file, \@header, $row, $col, \@m);
+            show_match($file, \@header, $question, $row, $col, $value, \@m);
         }
     }
 }
 
 my $SHOWN;
 sub show_match {
-    my ($file, $header, $row, $col, $matches) = @_;
+    my ($file, $header, $question, $row, $col, $value, $matches) = @_;
     my $field = $header->[$col];
     my $acol = alpha_col($col);
     $SHOWN = 1;
     print "=" x 40, "\n";
     local $, = q(,);
     print <<"__match"
-file $file, row @{[ $row + 1 ]}, column $acol (field "$field")
+file $file, question $question, field "$field"
 matched strings: @$matches
+cell value: $value
 __match
 }
 END {
@@ -104,6 +116,10 @@ excel-grep - search for a string within Excel files
     excel-grep --file pattern-file file.xls [...]
 
 =head1 ARGUMENTS
+
+=head1 -i
+
+Performs string matching in a case-insensitive manner.
 
 =cut
 
