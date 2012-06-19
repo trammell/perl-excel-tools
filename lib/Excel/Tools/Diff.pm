@@ -1,7 +1,5 @@
 #!/usr/bin/perl
 
-package Excel::Tools::Diff;
-
 use strict;
 use warnings;
 binmode(STDOUT, ":utf8");

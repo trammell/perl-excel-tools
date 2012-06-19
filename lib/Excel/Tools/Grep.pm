@@ -1,10 +1,7 @@
 #!/usr/bin/perl
 
-package Excel::Tools::Grep;
-
 use strict;
 use warnings;
-
 binmode(STDOUT, ":utf8");
 
 use Spreadsheet::ParseExcel;
